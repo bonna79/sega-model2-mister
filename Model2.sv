@@ -596,6 +596,11 @@ localparam CONF_STR = {
 	// mapped below to the palette's encoding (0 MAME, 1 mild, 2/3 off).
 	// R790: MAME first now -- Ben's default. Menu 0 MAME, 1 Off, 2 Mild.
 	"O[33:32],Gamma,MAME,Off,Mild;",
+	// SDRAM read capture (SuperStation / other boards): index 0 is the old
+	// fixed CL+2, so a saved config and the default behave exactly as before.
+	// Calibrated = the boot sweep's centre (cal_best). Takes effect at once;
+	// press Reset after changing it.
+	"O[74:73],SDRAM read,CL+2,CL+3,CL+1,Calibrated;",
 	// R829: Volume, 80% by default (Ben). Index 0 is the default, so the list
 	// runs 80, 90, 100, then wraps through 0..70 -- one press steps 10%.
 `ifdef M2_2A
@@ -1086,6 +1091,11 @@ localparam int unsigned SDR_COL  = 10;
 // commands are deselects, so it runs there as before (tb: test_m2_sdram128d).
 // The original core (M2_NO_2A) is untouched: 64 MB, the mask on the DQM pins.
 localparam bit          SDR_DUAL = M2A;
+// The read capture after calibration: OSD "SDRAM read" (status[74:73]).
+// 0 CL+2 (the old fixed value, R411), 1 CL+3, 2 CL+1, 3 the boot sweep's
+// choice (cal_best). Quasi-static (an OSD setting), sampled into m2_sdram's
+// cap_depth register on clk_mem.
+wire [2:0] sdr_cap_sel;
 localparam int unsigned SDR_AW   = (SDR_DUAL ? 1 : 0) + 2 + 13 + SDR_COL;   // 26 on 2A (128 MB), 25 (64 MB)
 
 wire        mem_ready, sd_dq_oe, rom_loaded, ldr_overflow;
@@ -2058,7 +2068,7 @@ m2_sdram #(.COL_BITS(SDR_COL), .NP(NPORTS), .T_REFI(M2A ? 770 : 781),
 	// UART (R399), it just no longer drives the depth.
 	// R891: and CL+2 while the memory test owns port 1 (before the calibration
 	// has run, which waits for a game)
-	.rd_lat_sel((!cal_done && !(MEMTEST && mt_own)) ? cal_sel : 3'd2),
+	.rd_lat_sel((!cal_done && !(MEMTEST && mt_own)) ? cal_sel : sdr_cap_sel),
 	.sd_cke(SDRAM_CKE), .sd_cs_n(SDRAM_nCS), .sd_ras_n(SDRAM_nRAS),
 	.sd_cas_n(SDRAM_nCAS), .sd_we_n(SDRAM_nWE), .sd_ba(SDRAM_BA),
 	.sd_a(SDRAM_A), .sd_dqm(sdr_dqm),
@@ -2243,6 +2253,9 @@ wire [2:0] cal_scan =
                                                 // a measured value from a
                                                 // working design, not a guess
 wire   [2:0]     cal_best = cal_scan;
+assign sdr_cap_sel = (status[74:73] == 2'd1) ? 3'd3 :
+                     (status[74:73] == 2'd2) ? 3'd1 :
+                     (status[74:73] == 2'd3) ? cal_best : 3'd2;
 // TWELVE AND ABOVE, not twelve exactly: the states after it fill texture RAM
 // (R223) and everything that waits on calibration must stay released through
 // them.
