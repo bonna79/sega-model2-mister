@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seed: [4712, 4711, 4713]
+        seed: [4714, 4715, 4716, 4717, 4718, 4719]
     env:
       IMAGE: theypsilon/quartus-lite-c5:17.0
     steps:
@@ -38,9 +38,12 @@ jobs:
         if: always()
         run: |
           cat output_files/Model2.fit.summary || true
+          grep -n "Summary ;" output_files/Model2.sta.rpt | head -60 || true
+          awk '/Multicorner Timing Analysis Summary/{f=1} f{print; n++} n>40{exit}' output_files/Model2.sta.rpt || true
           for c in "Slow 1100mV 100C" "Slow 1100mV -40C" "Fast 1100mV 100C" "Fast 1100mV -40C"; do
-            echo "== $c"; grep -A25 "; $c Model Setup Summary" output_files/Model2.sta.rpt | head -25 || true
-            grep -A25 "; $c Model Hold Summary" output_files/Model2.sta.rpt | head -25 || true
+            for k in Setup Hold Recovery; do
+              awk -v h="$c Model $k Summary" 'index($0,h){f=1} f{print; n++} f && n>20{exit}' output_files/Model2.sta.rpt || true
+            done
           done
           md5sum output_files/Model2.rbf || true
 
