@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seed: [4714, 4715, 4716, 4717, 4718, 4719]
+        seed: [4720, 4721, 4722, 4723, 4724, 4725, 4726, 4727, 4728, 4729, 4730, 4731]
     env:
       IMAGE: theypsilon/quartus-lite-c5:17.0
     steps:
