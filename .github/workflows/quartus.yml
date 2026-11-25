@@ -1,0 +1,55 @@
+# Build the Model 2C core (Model2.rbf, branch model2c settings) with Quartus
+# Prime Lite 17.0.0 b595 in MiSTer-devel's CI image, several fitter seeds at once.
+# Runs on a push to a ci-* branch or by hand.
+name: Quartus build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["ci-*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [4712, 4711, 4713]
+    env:
+      IMAGE: theypsilon/quartus-lite-c5:17.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull Quartus image
+        run: docker pull "$IMAGE"
+
+      - name: Set fitter seed
+        run: |
+          sed -i "s/^set_global_assignment -name SEED .*/set_global_assignment -name SEED ${{ matrix.seed }}/" Model2.qsf
+          grep -n "name SEED" Model2.qsf
+
+      - name: Compile
+        run: |
+          docker run --rm -v "$PWD:/project" -w /project --user "$(id -u):$(id -g)" "$IMAGE" \
+            quartus_sh --flow compile Model2
+
+      - name: Fit and timing summary
+        if: always()
+        run: |
+          cat output_files/Model2.fit.summary || true
+          for c in "Slow 1100mV 100C" "Slow 1100mV -40C" "Fast 1100mV 100C" "Fast 1100mV -40C"; do
+            echo "== $c"; grep -A25 "; $c Model Setup Summary" output_files/Model2.sta.rpt | head -25 || true
+            grep -A25 "; $c Model Hold Summary" output_files/Model2.sta.rpt | head -25 || true
+          done
+          md5sum output_files/Model2.rbf || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Model2C-seed${{ matrix.seed }}-${{ github.sha }}
+          path: |
+            output_files/Model2.rbf
+            output_files/*.summary
+            output_files/*.sta.rpt
+          if-no-files-found: warn
