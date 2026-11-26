@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seed: [4720, 4721, 4722, 4723, 4724, 4725, 4726, 4727, 4728, 4729, 4730, 4731]
+        seed: [4732, 4733, 4734, 4735, 4736, 4737, 4738, 4739, 4740, 4741, 4742, 4743, 4744, 4745, 4746, 4747]
     env:
       IMAGE: theypsilon/quartus-lite-c5:17.0
     steps:
@@ -33,6 +33,13 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/project" -w /project --user "$(id -u):$(id -g)" "$IMAGE" \
             quartus_sh --flow compile Model2
+
+      - name: Timing at all four corners
+        run: |
+          docker run --rm -v "$PWD:/project" -w /project --user "$(id -u):$(id -g)" "$IMAGE" \
+            quartus_sta Model2 -c Model2 --multicorner=on > sta_mc.log 2>&1 || true
+          grep -E "Analyzing .* Model|Worst-case (setup|hold|recovery|removal) slack" sta_mc.log || true
+          echo "== negative clocks"; grep -E "Analyzing .* Model|332119\):\s+-[0-9]" sta_mc.log || true
 
       - name: Fit and timing summary
         if: always()
